@@ -1,41 +1,41 @@
 # Web + CI para compilar el APK y permitir descarga
 
-Este paquete incluye:
+# Este paquete incluye:
 
-1. **Workflow de GitHub Actions** que compila tu APK de Flutter y lo publica en un **Release "latest"** del repositorio.
-2. **Aplicación web estática** (HTML/JS/CSS) que consulta el Release `latest` del repo y muestra un botón de **Descargar APK**.
-3. **Instrucciones de firma** (opcional) para que el APK salga firmado para distribución.
+#1. **Workflow de GitHub Actions** que compila tu APK de Flutter y lo publica en un **Release "latest"** del repositorio.
+#2. **Aplicación web estática** (HTML/JS/CSS) que consulta el Release `latest` del repo y muestra un botón de **Descargar APK**.
+#3. **Instrucciones de firma** (opcional) para que el APK salga firmado para distribución.
 
-> **Resumen del flujo**: haces *push* al repo → Actions construye el APK → lo sube al Release `latest` → tu web (hosteada en GitHub Pages, Netlify, Vercel, etc.) lee el Release y muestra un botón de descarga.
+#> **Resumen del flujo**: haces *push* al repo → Actions construye el APK → lo sube al Release `latest` → tu web (hosteada en GitHub Pages, Netlify, Vercel, etc.) lee el Release y muestra un botón de descarga.
 
 ---
 
 ## 0) Estructura sugerida de tu repo
 
-```
-root/
-├─ lib/
-│  └─ main.dart                   # Tu app Flutter (puedes usar el que ya te di)
-├─ android/ ...                   # Árbol Android que crea Flutter
-├─ web-download/                  # Sitio web estático para descargar el APK
-│  ├─ index.html
-│  ├─ app.js
-│  └─ styles.css
-├─ .github/
-│  └─ workflows/
-│     └─ android-apk.yml          # Workflow CI
-└─ README.md
-```
+#```
+#root/
+#├─ lib/
+#│  └─ main.dart                   # Tu app Flutter (puedes usar el que ya te di)
+#├─ android/ ...                   # Árbol Android que crea Flutter
+#├─ web-download/                  # Sitio web estático para descargar el APK
+#│  ├─ index.html
+#│  ├─ app.js
+#│  └─ styles.css
+#├─ .github/
+#│  └─ workflows/
+#│     └─ android-apk.yml          # Workflow CI
+#└─ README.md
+#```
 
----
+#---
 
 ## 1) Workflow de CI (GitHub Actions)
 
-**Archivo:** `.github/workflows/build_apk.yml`
+#**Archivo:** `.github/workflows/build_apk.yml`
 
-> **Este es tu archivo ya adaptado para `eudorocr/agenda`.** Construye el APK y lo publica como **Release `latest`**.
+#> **Este es tu archivo ya adaptado para `eudorocr/agenda`.** Construye el APK y lo publica como **Release `latest`**.
 
-```yaml
+#```yaml
 name: Build Flutter APK (agenda)
 
 on:
@@ -82,19 +82,19 @@ jobs:
           title: "Latest APK (agenda)"
           files: |
             build/app/outputs/flutter-apk/app-release.apk
-```
+#```
 
-> Este workflow crea/actualiza un **Release con tag `latest`** y adjunta `app-release.apk`.
+#> Este workflow crea/actualiza un **Release con tag `latest`** y adjunta `app-release.apk`.
 
----
+#---
 
 ## 2) Web estática para descargar el APK
 
-**Reemplazado ya con tu OWNER/REPO** `eudorocr/agenda`.
+#**Reemplazado ya con tu OWNER/REPO** `eudorocr/agenda`.
 
 ### `web-download/index.html`
 
-```html
+#```html
 <!doctype html>
 <html lang="es">
 <head>
