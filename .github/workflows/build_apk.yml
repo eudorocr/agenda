@@ -1,65 +1,38 @@
-name: Build Flutter APK (agenda)
+name: Build Flutter APK
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
-# 🔐 Necesario para que el bot pueda crear/actualizar Releases
-permissions:
-  contents: write
-
 jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java (para Android)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
-          # flutter-version: '3.x.x'  # opcional: fija versión
+          channel: stable
 
-      # ✅ Evita "Permission denied" al invocar Gradle
-      - name: Ensure gradlew is executable
-        run: chmod +x android/gradlew
-
-      # (Opcional) Si vas a firmar, descomenta esto y configura los secrets
-      # - name: Decode keystore
-      #   working-directory: android/app
-      #   run: |
-      #     echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > my-release-key.jks
-
-      - name: Flutter pub get
+      - name: Get dependencies
         run: flutter pub get
 
-      - name: Build APK (release)
-        # Si firmas en build.gradle, se usará la firma; si no, será release sin firma
+      - name: Build APK (debug o release)
         run: flutter build apk --release
 
-      - name: Upload artifact (backup)
+      - name: Upload APK como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: app-release.apk
+          name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Publish/Update latest Release with APK
-        uses: marvinpinto/action-automatic-releases@latest
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          automatic_release_tag: "latest"
-          prerelease: false
-          title: "Latest APK (agenda)"
-          files: |
-            build/app/outputs/flutter-apk/app-release.apk
 
 
