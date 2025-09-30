@@ -1,47 +1,13 @@
-# Web + CI para compilar el APK y permitir descarga
-
-Este paquete incluye:
-
-1. **Workflow de GitHub Actions** que compila tu APK de Flutter y lo publica en un **Release "latest"** del repositorio.
-2. **Aplicación web estática** (HTML/JS/CSS) que consulta el Release `latest` del repo y muestra un botón de **Descargar APK**.
-3. **Instrucciones de firma** (opcional) para que el APK salga firmado para distribución.
-
-> **Resumen del flujo**: haces *push* al repo → Actions construye el APK → lo sube al Release `latest` → tu web (hosteada en GitHub Pages, Netlify, Vercel, etc.) lee el Release y muestra un botón de descarga.
-
----
-
-## 0) Estructura sugerida de tu repo
-
-```
-root/
-├─ lib/
-│  └─ main.dart                   # Tu app Flutter (puedes usar el que ya te di)
-├─ android/ ...                   # Árbol Android que crea Flutter
-├─ web-download/                  # Sitio web estático para descargar el APK
-│  ├─ index.html
-│  ├─ app.js
-│  └─ styles.css
-├─ .github/
-│  └─ workflows/
-│     └─ android-apk.yml          # Workflow CI
-└─ README.md
-```
-
----
-
-## 1) Workflow de CI (GitHub Actions)
-
-**Archivo:** `.github/workflows/build_apk.yml`
-
-> **Este es tu archivo ya adaptado para `eudorocr/agenda`.** Construye el APK y lo publica como **Release `latest`**.
-
-```yaml
 name: Build Flutter APK (agenda)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+# 🔐 Necesario para que el bot pueda crear/actualizar Releases
+permissions:
+  contents: write
 
 jobs:
   build-android:
@@ -55,16 +21,29 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          # flutter-version: '3.x.x'  # opcional: fija versión
+
+      # ✅ Evita "Permission denied" al invocar Gradle
+      - name: Ensure gradlew is executable
+        run: chmod +x android/gradlew
+
+      # (Opcional) Si vas a firmar, descomenta esto y configura los secrets
+      # - name: Decode keystore
+      #   working-directory: android/app
+      #   run: |
+      #     echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > my-release-key.jks
 
       - name: Flutter pub get
         run: flutter pub get
 
       - name: Build APK (release)
+        # Si firmas en build.gradle, se usará la firma; si no, será release sin firma
         run: flutter build apk --release
 
       - name: Upload artifact (backup)
@@ -82,199 +61,5 @@ jobs:
           title: "Latest APK (agenda)"
           files: |
             build/app/outputs/flutter-apk/app-release.apk
-```
 
-> Este workflow crea/actualiza un **Release con tag `latest`** y adjunta `app-release.apk`.
-
----
-
-## 2) Web estática para descargar el APK
-
-**Reemplazado ya con tu OWNER/REPO** `eudorocr/agenda`.
-
-### `web-download/index.html`
-
-```html
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Descargar APK — agenda</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <main class="card">
-    <h1>Descargar APK</h1>
-    <p>Compilación automática desde GitHub Actions (Release <code>latest</code> de <code>eudorocr/agenda</code>).</p>
-
-    <div id="status" class="status">Buscando build…</div>
-
-    <div id="info" class="info hidden">
-      <p><strong>Versión:</strong> <span id="tag"></span></p>
-      <p><strong>Publicado:</strong> <span id="published"></span></p>
-      <a id="downloadBtn" class="btn" href="#" download>⬇ Descargar APK</a>
-    </div>
-
-    <div id="error" class="error hidden"></div>
-  </main>
-  <footer>
-    <small>© <span id="year"></span> eudorocr</small>
-  </footer>
-  <script src="app.js"></script>
-</body>
-</html>
-```
-
-### `web-download/app.js`
-
-```js
-const OWNER = 'eudorocr';
-const REPO  = 'agenda';
-
-async function loadLatest() {
-  const statusEl = document.getElementById('status');
-  const infoEl = document.getElementById('info');
-  const errEl = document.getElementById('error');
-  const tagEl = document.getElementById('tag');
-  const pubEl = document.getElementById('published');
-  const btn = document.getElementById('downloadBtn');
-
-  try {
-    statusEl.textContent = 'Consultando GitHub…';
-    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/latest`);
-    if (!res.ok) throw new Error('No se encontró el release "latest". Ejecuta el workflow una vez.');
-    const rel = await res.json();
-
-    const apk = rel.assets.find(a => a.name.endsWith('.apk'));
-    if (!apk) throw new Error('El Release no contiene un .apk');
-
-    tagEl.textContent = rel.tag_name;
-    pubEl.textContent = new Date(rel.published_at).toLocaleString();
-    btn.href = apk.browser_download_url;
-
-    statusEl.classList.add('hidden');
-    infoEl.classList.remove('hidden');
-  } catch (e) {
-    statusEl.classList.add('hidden');
-    errEl.textContent = e.message;
-    errEl.classList.remove('hidden');
-  }
-}
-
-document.getElementById('year').textContent = new Date().getFullYear();
-loadLatest();
-```
-
-### `web-download/styles.css`
-
-```css
-:root { --bg:#0f172a; --fg:#e2e8f0; --muted:#94a3b8; --accent:#22d3ee; }
-* { box-sizing: border-box; }
-html,body { height:100%; }
-body {
-  margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
-  background: linear-gradient(120deg, #0f172a, #111827);
-  color: var(--fg);
-  display:flex; align-items:center; justify-content:center;
-}
-.card {
-  width: min(560px, 92vw);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 20px; padding: 28px; backdrop-filter: blur(8px);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-}
-.btn {
-  display:inline-block; padding:14px 18px; border-radius: 12px; text-decoration:none; color:#00101a; background: var(--accent);
-  font-weight: 700; box-shadow: 0 6px 18px rgba(34,211,238,.35);
-}
-.status { color: var(--muted); margin: 16px 0; }
-.error { color: #fecaca; background:#7f1d1d; padding:12px; border-radius:10px; border:1px solid #fecaca33; }
-.hidden { display:none; }
-footer { position: fixed; bottom: 10px; left:0; right:0; text-align:center; color: var(--muted); }
-```
-
----
-
-## 3) Firma del APK (opcional pero recomendable)
-
-1. Genera un keystore:
-
-   ```bash
-   keytool -genkey -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-   ```
-
-2. Convierte a Base64 para guardarlo como secreto:
-
-   ```bash
-   base64 my-release-key.jks > my-release-key.jks.b64
-   ```
-
-3. Crea estos **Secrets** en tu repo (Settings → Secrets and variables → Actions → New repository secret):
-
-   * `ANDROID_KEYSTORE_BASE64` → contenido del `.b64`
-   * `ANDROID_KEYSTORE_PASSWORD` → contraseña del keystore
-   * `ANDROID_KEY_ALIAS` → `upload` (o el alias que usaste)
-   * `ANDROID_KEY_PASSWORD` → contraseña de la clave
-
-4. En `android/app/build.gradle`, añade la config de firma (si no existe):
-
-```gradle
-android {
-  ...
-  signingConfigs {
-    release {
-      if (System.getenv("ANDROID_KEYSTORE_PASSWORD") != null) {
-        storeFile file("my-release-key.jks")
-        storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-        keyAlias System.getenv("ANDROID_KEY_ALIAS")
-        keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-      }
-    }
-  }
-  buildTypes {
-    release {
-      signingConfig signingConfigs.release
-      minifyEnabled false
-      shrinkResources false
-    }
-  }
-}
-```
-
-5. Descomenta el paso "Decode keystore" en el workflow para que el archivo se materialice en `android/app/my-release-key.jks` antes del build.
-
-> Si no firmas, el APK será de *debug* o *release sin firma* y puede que Android bloquee la instalación en ciertos dispositivos.
-
----
-
-## 4) Publicar la web
-
-* **GitHub Pages**: pon la carpeta `web-download/` en una rama (por ejemplo `gh-pages`) o usa **Pages** desde `main` con carpeta `/web-download`. Activa en *Settings → Pages*.
-* **Netlify/Vercel**: arrastra la carpeta `web-download/` o configura deploy apuntando a esa subcarpeta.
-
-La web llamará al endpoint público de GitHub Releases y mostrará el botón **Descargar APK** cuando exista el Release `latest` con un `.apk` adjunto.
-
----
-
-## 5) README (resumen)
-
-```
-1) Sube tu proyecto Flutter.
-2) Copia .github/workflows/android-apk.yml
-3) (Opcional) Configura firma y Secrets.
-4) Haz push a main o ejecuta «Run workflow» manualmente.
-5) Verifica que se creó/actualizó el Release `latest` con el APK.
-6) Publica `web-download/` (GitHub Pages / Netlify) y edita OWNER/REPO en app.js.
-7) Visita tu web y descarga el APK.
-```
-
----
-
-## 6) Notas útiles
-
-* Si quieres **versionar por tag** (v1.0.0, v1.0.1, …) en vez de `latest`, podemos ajustar el workflow para que al hacer `git tag vX.Y.Z && git push --tags` cree un Release por versión; la web puede listar varias.
-* Si quieres **AAB** (Android App Bundle) además del APK, añade `flutter build appbundle --release` y sube ambos.
-* Para **iOS** esto no aplica (requiere Xcode/macOS y firmar con certificados). Se puede automatizar aparte.
 
